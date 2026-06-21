@@ -1,0 +1,40 @@
+# Binaries
+clank
+*.test
+*.out
+
+# Coverage
+coverage.*
+
+# Copier
+.copier-answers.yml
+
+# Environment
+.env
+.envrc
+.direnv/
+
+# Build output
+bin/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# IDEs
+.idea/
+*.swp
+*.swo
+*~
+
+# Go debug binaries (dlv)
+__debug_bin*

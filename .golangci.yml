@@ -1,0 +1,22 @@
+version: "2"
+
+linters:
+  enable:
+    - gosec
+    - godot
+    - misspell
+    - errorlint
+    - revive
+  settings:
+    staticcheck:
+      checks: ["all"]
+  exclusions:
+    warn-unused: true
+    presets:
+      # Skeleton code: don't nag about missing doc comments on placeholder symbols.
+      - comments
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
