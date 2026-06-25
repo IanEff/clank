@@ -172,9 +172,70 @@ type Engine struct {
 
 // Propose runs the reason loop for one Signal and returns the recorded Outcome.
 func (e *Engine) Propose(ctx context.Context, sig Signal) (Outcome, error) {
-	_ = ctx
-	_ = sig
-	return Outcome{}, nil
+	// STEP 1 — Seed the conversation: build the opening []Message from the Signal.
+	msgs := []Message{{Role: "user", Content: sig.Summary}}
+
+	// STEP 2 — The bounded loop (Invariant 2): for step := 0; step < e.MaxSteps; step++
+	//   a) Ask the model:        e.Model.Complete(ctx, msgs, ...)
+	//   b) Checkpoint the turn:  e.Store.Checkpoint(...)   (Invariant 5)
+	//   c) switch on each completion.ToolCalls[i].Name:
+	//        "propose"  -> Unmarshal the Decision, copy sig.Fingerprint onto it,
+	//                      ask e.Proposals.Open for dupes, e.Gate.Evaluate, build the
+	//                      Outcome, e.Proposals.Record it, e.Sink.Deliver if admitted, return.
+	//        default    -> find the Tool whose Name() matches, Run it, append the
+	//                      EvidenceRef.Summary digest to msgs, loop again.
+	for step := 0; step < e.MaxSteps; step++ {
+		completion, err := e.Model.Complete(ctx, msgs, nil)
+		if err != nil {
+			return Outcome{}, err
+		}
+		if err := e.Store.Checkpoint(ctx, Turn{RunID: sig.ID, Step: step, Msgs: msgs}); err != nil {
+			return Outcome{}, err
+		}
+
+		for _, call := range completion.ToolCalls {
+			switch call.Name {
+			case "propose":
+				// model is done investigating
+				var d Decision
+				if err := json.Unmarshal(call.Args, &d); err != nil {
+					return Outcome{}, err
+				}
+				d.Fingerprint = sig.Fingerprint
+
+				openDupes, err := e.Proposals.Open(ctx, d.Fingerprint, time.Now().Add(-time.Hour))
+				if err != nil {
+					return Outcome{}, err
+				}
+				verdict := e.Gate.Evaluate(d, openDupes)
+				out := Outcome{Decision: d, Status: verdict.Status, Reason: verdict.Reason, At: time.Now()}
+				if err := e.Proposals.Record(ctx, out); err != nil {
+					return Outcome{}, err
+				}
+				if verdict.Admit {
+					if err := e.Sink.Deliver(ctx, out); err != nil {
+						return Outcome{}, err
+					}
+				}
+				return out, nil
+
+			default:
+				for _, tool := range e.Tools {
+					if tool.Name() == call.Name {
+						ev, err := tool.Run(ctx, call.Args)
+						if err != nil {
+							return Outcome{}, err
+						}
+						msgs = append(msgs, Message{Role: "user", Content: ev.Summary})
+					}
+				}
+			}
+		}
+	}
+
+	// STEP 3 — Fell out of the loop without proposing -> budget_exhausted (Invariant 2).
+
+	return Outcome{Status: StatusBudgetExhausted, At: time.Now()}, nil
 }
 
 type MemProposalLog struct {

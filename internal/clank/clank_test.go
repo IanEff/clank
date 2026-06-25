@@ -2,6 +2,8 @@ package clank_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -91,4 +93,104 @@ func TestStore_PendingReturnsACheckpointedTurn(t *testing.T) {
 	if len(pending) != 1 || pending[0].RunID != "r1" {
 		t.Errorf("a checkpointed turn should come bac as pending: want [r1], got %+v", pending)
 	}
+}
+
+type fakeModel struct {
+	script   []clank.Completion
+	calls    int
+	received [][]clank.Message
+}
+
+func (m *fakeModel) Complete(_ context.Context, msgs []clank.Message, _ []clank.ToolSpec) (clank.Completion, error) {
+	m.received = append(m.received, msgs)
+	if m.calls >= len(m.script) {
+		return clank.Completion{}, fmt.Errorf("fakeModel: script exhausted after %d calls", m.calls)
+	}
+	c := m.script[m.calls]
+	m.calls++
+	return c, nil
+}
+
+// type failingStore struct {
+// 	*clank.MemStore
+// 	failOn int
+// 	n      int
+// }
+
+// func (s *failingStore) Checkpoint(ctx context.Context, t clank.Turn) error {
+// 	s.n++
+// 	if s.n == s.failOn {
+// 		return fmt.Errorf("failingStore: simulated checkpoint failure on call %d", s.n)
+// 	}
+// 	return s.MemStore.Checkpoint(ctx, t)
+// }
+
+type recordingSink struct{ delivered []clank.Outcome }
+
+func (s *recordingSink) Deliver(_ context.Context, o clank.Outcome) error {
+	s.delivered = append(s.delivered, o)
+	return nil
+}
+
+type fakeTool struct {
+	name   string
+	digest string
+	ref    string
+	// rawLeaks bool
+}
+
+func (f fakeTool) Name() string         { return f.name }
+func (f fakeTool) Spec() clank.ToolSpec { return clank.ToolSpec{Name: f.name} }
+
+func (f fakeTool) Run(_ context.Context, _ json.RawMessage) (clank.EvidenceRef, error) {
+	return clank.EvidenceRef{Tool: f.name, Summary: f.digest, Ref: f.ref}, nil
+}
+
+func testSignal() clank.Signal {
+	return clank.Signal{
+		ID:          "1",
+		Fingerprint: "fp-1",
+	}
+}
+
+// Happy path.
+func TestPropose_WithEvidence_YieldsAProposal(t *testing.T) {
+	t.Parallel()
+	model := &fakeModel{script: []clank.Completion{
+		{ToolCalls: []clank.ToolCall{{Name: "logs", Args: json.RawMessage(`{"q":"503s}`)}}},
+		{ToolCalls: []clank.ToolCall{{Name: "propose", Args: proposeArgs(t, clank.Decision{
+			Action:   "scale checkout to 6",
+			Evidence: []clank.EvidenceRef{{Summary: "503 rate 12%/min", Ref: "loki:abc"}},
+		})}}},
+	}}
+
+	e := newTestEngine(model)
+
+	got, err := e.Propose(context.Background(), testSignal())
+	if err != nil {
+		t.Fatalf("Propose returned an unexpected error: %v", err)
+	}
+	if got.Status != clank.StatusProposed {
+		t.Errorf("a signal investigated to an evidence-backed decision should be proposed: want %s, got %s", clank.StatusProposed, got.Status)
+	}
+}
+
+func newTestEngine(m clank.Model) clank.Engine {
+	return clank.Engine{
+		Model:     m,
+		Store:     clank.NewMemStore(),
+		Proposals: clank.NewMemProposalLog(),
+		Gate:      clank.ReadinessGate{},
+		Sink:      &recordingSink{},
+		Tools:     []clank.Tool{fakeTool{name: "logs", digest: "503 rate 12%/min", ref: "loki:abc"}},
+		MaxSteps:  5,
+	}
+}
+
+func proposeArgs(t *testing.T, d clank.Decision) json.RawMessage {
+	decision, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return decision
 }
