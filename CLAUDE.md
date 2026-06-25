@@ -29,6 +29,10 @@ logging, context-driven graceful shutdown.
 This is a **learning project** as much as a build: Ian is using it to learn Go, and will
 lean on Claude heavily as a pairing partner to figure out *how* to implement the code. So:
 
+- **Never commit or push. This is Ian's repo to land.** Do not run `git add`, `git commit`,
+  `git push`, or otherwise check anything in here — not even when work is green. Edit files,
+  run tests/`make ci`, and stop. Ian owns the history; offer to stage or describe a commit
+  if asked, but the commit is always his to make.
 - **Teach, don't just type.** Explain the *why* — the Go idiom at play, what a test is
   pinning, what a failure proves — not only the final code. Surface the reasoning behind the
   move so the lesson sticks.

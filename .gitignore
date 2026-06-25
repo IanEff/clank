@@ -1,5 +1,5 @@
 # Binaries
-clank
+bin/
 *.test
 *.out
 
