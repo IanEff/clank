@@ -20,7 +20,7 @@ func TestRanker_AcceleratingBlastFavorsFastContainment(t *testing.T) {
 	}
 }
 
-func impactRecovering(duration string) clank.PredictedImpact {
+func impactRecovering(duration string) *clank.PredictedImpact {
 	effects := map[string]string{"time_to_effect": duration}
-	return clank.PredictedImpact{SLOEffects: effects}
+	return &clank.PredictedImpact{SLOEffects: effects}
 }

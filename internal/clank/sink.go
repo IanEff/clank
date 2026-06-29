@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+
+	"sigs.k8s.io/yaml"
 )
 
 type ProposalSink interface {
@@ -25,6 +27,21 @@ func (s *MarkdownSink) Deliver(_ context.Context, ps ProposalSet) error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+type YAMLSink struct {
+	W io.Writer
+}
+
+func (s *YAMLSink) Deliver(_ context.Context, ps ProposalSet) error {
+	out, err := yaml.Marshal(ps)
+	if err != nil {
+		return fmt.Errorf("yaml sink: marshal proposal set: %w", err)
+	}
+	if _, err := s.W.Write(out); err != nil {
+		return fmt.Errorf("yaml sink: write: %w", err)
 	}
 	return nil
 }

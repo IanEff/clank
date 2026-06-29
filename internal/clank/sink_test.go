@@ -18,3 +18,21 @@ func ExampleMarkdownSink_Deliver() {
 	// ## ProposalSet: dependency_saturation (1 considered)
 	// **Recommended:** prop-001 — throttle-non-critical-paths
 }
+
+func ExampleYAMLSink_Deliver() {
+	sink := &clank.YAMLSink{W: os.Stdout}
+	_ = sink.Deliver(context.Background(), clank.ProposalSet{
+		FailureClass: clank.ClassDependencySaturation,
+		Recommended:  "prop-001",
+		Proposals: []clank.Candidate{
+			{ID: "prop-001", ContractRef: "throttle-non-critical-paths", Rank: 1},
+		},
+	})
+	// Output:
+	// failureClass: dependency_saturation
+	// proposals:
+	// - contractRef: throttle-non-critical-paths
+	//   id: prop-001
+	//   rank: 1
+	// recommended: prop-001
+}
