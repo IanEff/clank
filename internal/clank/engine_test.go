@@ -176,7 +176,7 @@ func specNames(specs []clank.ToolSpec) []string {
 func openProposalFor(fp string) clank.ProposalSet {
 	return clank.ProposalSet{
 		SignalRef: fp,
-		Status:    clank.ProposalStatus{Phase: "proposed"},
+		Status:    &clank.ProposalStatus{Phase: "proposed"},
 	}
 }
 

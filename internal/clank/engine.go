@@ -37,9 +37,11 @@ func (e *Engine) Propose(ctx context.Context, sig signal.Detection) (ProposalSet
 	set := ProposalSet{
 		Name:        sig.Name,
 		SignalRef:   sig.Fingerprint,
-		SAOSnapshot: sao,
+		SAOSnapshot: &sao,
 		ServiceTier: sig.ServiceTier,
 	}
+
+	set.Status = &ProposalStatus{}
 
 	msgs := []Message{{Role: "user", Content: seedPrompt(sao)}}
 	var evidence []EvidenceRef
@@ -99,7 +101,7 @@ func (e *Engine) Propose(ctx context.Context, sig signal.Detection) (ProposalSet
 	set.Evidence = evidence
 
 	if !proposed && !declined {
-		set.Gate = GateResult{BudgetOK: false, Reason: "budget"}
+		set.Gate = &GateResult{BudgetOK: false, Reason: "budget"}
 		set.Status.Phase = "budget_exhausted"
 		if err := e.Ledger.Record(ctx, set); err != nil {
 			return ProposalSet{}, fmt.Errorf("record: %w", err)
@@ -124,7 +126,7 @@ func (e *Engine) Propose(ctx context.Context, sig signal.Detection) (ProposalSet
 
 	ranked, why := e.Ranker.Rank(set.Proposals, sig.Impact.BlastRadius.Velocity)
 	set.Proposals = ranked
-	set.RankingRationale = why
+	set.RankingRationale = &why
 	if len(ranked) > 0 {
 		set.Recommended = ranked[0].ID
 	}
@@ -133,7 +135,8 @@ func (e *Engine) Propose(ctx context.Context, sig signal.Detection) (ProposalSet
 	if err != nil {
 		return ProposalSet{}, fmt.Errorf("open dupes: %w", err)
 	}
-	set.Gate = e.Gate.Evaluate(set, openDupes, e.Policy)
+	gate := e.Gate.Evaluate(set, openDupes, e.Policy)
+	set.Gate = &gate
 	if set.Gate.Passed {
 		set.Status.Phase = "proposed"
 	} else {

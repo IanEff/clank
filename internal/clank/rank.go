@@ -32,6 +32,9 @@ func (r *Ranker) Rank(cands []Candidate, velocity string) ([]Candidate, RankingR
 }
 
 func timeToEffect(c Candidate) int {
+	if c.PredictedImpact == nil {
+		return 0
+	}
 	n := 0
 	for _, ch := range c.PredictedImpact.SLOEffects["time_to_effect"] {
 		if ch < '0' || ch > '9' {

@@ -13,7 +13,7 @@ func TestProposalLog_OpenRespectsTheDedupeWindow(t *testing.T) {
 	ctx := context.Background()
 	log := clank.NewMemProposalLog()
 	at := time.Now()
-	_ = log.Record(ctx, clank.ProposalSet{SignalRef: "fp-1", Status: clank.ProposalStatus{Phase: "proposed"}})
+	_ = log.Record(ctx, clank.ProposalSet{SignalRef: "fp-1", Status: &clank.ProposalStatus{Phase: "proposed"}})
 
 	in, _ := log.Open(ctx, "fp-1", at.Add(-time.Hour))
 	if len(in) != 1 {
@@ -31,7 +31,7 @@ func TestProposalLog_OpenIgnoresClosedSets(t *testing.T) {
 	log := clank.NewMemProposalLog()
 	_ = log.Record(ctx, clank.ProposalSet{
 		SignalRef: "fp-1",
-		Status:    clank.ProposalStatus{Phase: "closed"},
+		Status:    &clank.ProposalStatus{Phase: "closed"},
 	})
 	open, _ := log.Open(ctx, "fp-1", time.Now().Add(-time.Hour))
 	if len(open) != 0 {

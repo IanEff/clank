@@ -6,19 +6,19 @@ package clank
 import "time"
 
 type ProposalSet struct {
-	Name             string
-	SignalRef        string
-	SAOSnapshot      SAO
-	FailureClass     FailureClass
-	CausalScores     []CausalScore
-	Hypotheses       []Hypothesis
-	Evidence         []EvidenceRef
-	ServiceTier      string
-	Gate             GateResult
-	Proposals        []Candidate
-	Recommended      string
-	RankingRationale RankingRationale
-	Status           ProposalStatus
+	Name             string            `json:"name,omitempty"`
+	SignalRef        string            `json:"signalRef,omitempty"`
+	SAOSnapshot      *SAO              `json:"saoSnapshot,omitempty"`
+	FailureClass     FailureClass      `json:"failureClass,omitempty"`
+	CausalScores     []CausalScore     `json:"causalScores,omitempty"`
+	Hypotheses       []Hypothesis      `json:"hypotheses,omitempty"`
+	Evidence         []EvidenceRef     `json:"evidence,omitempty"`
+	ServiceTier      string            `json:"serviceTier,omitempty"`
+	Gate             *GateResult       `json:"gate,omitempty"`
+	Proposals        []Candidate       `json:"proposals,omitempty"`
+	Recommended      string            `json:"recommended,omitempty"`
+	RankingRationale *RankingRationale `json:"rankingRationale,omitempty"`
+	Status           *ProposalStatus   `json:"status,omitempty"`
 }
 
 type RankingRationale struct {
@@ -47,13 +47,13 @@ type EvidenceRef struct {
 }
 
 type Candidate struct {
-	ID              string
-	ContractRef     string
-	Confidence      float64
-	PredictedImpact PredictedImpact
-	ReversalPath    ReversalPath
-	GovernanceLevel GovernanceLevel
-	Rank            int
+	ID              string           `json:"id,omitempty"`
+	ContractRef     string           `json:"contractRef,omitempty"`
+	Confidence      float64          `json:"confidence,omitempty"`
+	PredictedImpact *PredictedImpact `json:"predictedImpact,omitempty"`
+	ReversalPath    *ReversalPath    `json:"reversalPath,omitempty"`
+	GovernanceLevel *GovernanceLevel `json:"governanceLevel,omitempty"`
+	Rank            int              `json:"rank,omitempty"`
 }
 
 type PredictedImpact struct {
