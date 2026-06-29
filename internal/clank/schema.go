@@ -1,0 +1,55 @@
+package clank
+
+import (
+	"encoding/json"
+
+	"github.com/invopop/jsonschema"
+)
+
+// SchemaOf reflects T into a JSON Schema document. Tool input schemas are
+// generated from the Go types the model must populate, so the contract we send
+// the model and the type we json.Unmarshal its reply into can never drift.
+//
+// DoNotReference inlines nested types (no $defs) and ExpandedStruct hoists T's
+// fields to the root object — the shape the Messages API wants for input_schema.
+func SchemaOf[T any]() json.RawMessage {
+	r := jsonschema.Reflector{DoNotReference: true, ExpandedStruct: true}
+	b, err := json.Marshal(r.Reflect(new(T)))
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+// JSONSchemaExtend teaches the reflector the closed FailureClass enum, so the
+// schema stays in lockstep with the constants below it rather than a hand-copied
+// list. Invoked automatically by invopop when it reflects a FailureClass field.
+func (FailureClass) JSONSchemaExtend(s *jsonschema.Schema) {
+	s.Enum = []any{
+		string(ClassDependencySaturation),
+		string(ClassTrafficShift),
+		string(ClassResourceExhaustion),
+		string(ClassUnknown),
+	}
+}
+
+// proposeInput is the wire shape of the model's terminal `propose` tool call:
+// the subset of a ProposalSet the LLM authors (the engine fills the rest). It is
+// the single source for both the tool's input schema and — once the engine is
+// wired — the json.Unmarshal target, so the two can't disagree.
+type proposeInput struct {
+	FailureClass FailureClass       `json:"failureClass" jsonschema:"required"`
+	Hypotheses   []Hypothesis       `json:"hypotheses,omitempty"`
+	Proposals    []proposeCandidate `json:"proposals" jsonschema:"required"`
+}
+
+// proposeCandidate is the LLM-authored slice of a Candidate: a catalogued action
+// (contractRef) with a hypothesis confidence. Everything else a Candidate carries
+// — predicted impact, reversal path, governance band, rank — is the catalog's,
+// the ranker's, or deferred, so it is deliberately absent from what the model may
+// author. The json tags mirror Candidate's, so it decodes straight into one.
+type proposeCandidate struct {
+	ID          string  `json:"id,omitempty"`
+	ContractRef string  `json:"contractRef" jsonschema:"required"`
+	Confidence  float64 `json:"confidence,omitempty"`
+}

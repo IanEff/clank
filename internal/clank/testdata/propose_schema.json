@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ianeff/clank/internal/clank/propose-input",
+  "properties": {
+    "failureClass": {
+      "type": "string",
+      "enum": [
+        "dependency_saturation",
+        "traffic_shift",
+        "resource_exhaustion",
+        "unknown"
+      ]
+    },
+    "hypotheses": {
+      "items": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "weight"
+        ]
+      },
+      "type": "array"
+    },
+    "proposals": {
+      "items": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "contractRef": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "contractRef"
+        ]
+      },
+      "type": "array"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "failureClass",
+    "proposals"
+  ]
+}

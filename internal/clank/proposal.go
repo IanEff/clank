@@ -34,8 +34,8 @@ type ProposalStatus struct {
 }
 
 type Hypothesis struct {
-	Name   string
-	Weight float64
+	Name   string  `json:"name"`
+	Weight float64 `json:"weight"`
 }
 
 type EvidenceRef struct {
