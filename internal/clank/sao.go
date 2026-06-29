@@ -1,6 +1,10 @@
 package clank
 
-import "time"
+import (
+	"time"
+
+	"github.com/ianeff/clank/internal/signal"
+)
 
 type SAO struct {
 	Version     int
@@ -13,8 +17,8 @@ type SAO struct {
 type SignalSnapshot struct {
 	Confidence  float64
 	Metric      string
-	Severity    Severity
-	BlastRadius BlastRadius
+	Severity    signal.Severity
+	BlastRadius signal.BlastRadius
 }
 
 type TopologySnapshot struct {
@@ -43,15 +47,4 @@ type ChangeEvent struct {
 	Rationale           []string      // human-legible evidence per score
 	PredictedSignals    []string      // indicators expected if this change is causal (negative-signal check, defence 3)
 	HistoricalStaleness time.Duration // topology age of the case-base match (freshness-decay, defence 2)
-}
-
-type BlastRadius struct {
-	AffectedPct         float64
-	Velocity            string
-	DownstreamConsumers int
-}
-
-type Severity struct {
-	DegradationPct float64
-	Trajectory     string
 }

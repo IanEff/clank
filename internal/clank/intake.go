@@ -5,50 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/ianeff/clank/internal/signal"
 )
-
-type SignalDetection struct {
-	Name          string
-	Fingerprint   string // DEDUPE KEY assigned by rattle
-	OriginService string
-	ServiceTier   string
-	DetectorType  string
-	Divergence    Divergence
-	Topology      TopologyContext
-	Traffic       TrafficContext
-	Impact        Impact
-	ContractRef   string
-	DetectedAt    time.Time
-}
-
-type Divergence struct {
-	Metric     string
-	Observed   float64
-	Baseline   float64
-	Confidence float64
-	Trajectory string
-}
-
-type Impact struct {
-	Severity    Severity
-	BlastRadius BlastRadius
-}
-
-type TopologyContext struct {
-	Upstream  []ObservedNode
-	Downstrea []ObservedNode
-}
-
-type ObservedNode struct {
-	Service string
-	State   string // healthy | degrade | down - via rattle
-}
-
-type TrafficContext struct {
-	AffectedPct    float64
-	Baseline       float64
-	BaselineWindow string
-}
 
 var (
 	ErrTopologySource = errors.New("intake: topology source")
@@ -56,11 +15,11 @@ var (
 )
 
 type TopologySource interface {
-	Topology(ctx context.Context, sig SignalDetection) (TopologySnapshot, error)
+	Topology(ctx context.Context, sig signal.Detection) (TopologySnapshot, error)
 }
 
 type ChangeSource interface {
-	Changes(ctx context.Context, sig SignalDetection) (ChangeSnapshot, error)
+	Changes(ctx context.Context, sig signal.Detection) (ChangeSnapshot, error)
 }
 
 type Intake struct {
@@ -72,7 +31,7 @@ func NewIntake(topo TopologySource, change ChangeSource) *Intake {
 	return &Intake{topo: topo, change: change}
 }
 
-func (in *Intake) Assemble(ctx context.Context, sig SignalDetection) (SAO, error) {
+func (in *Intake) Assemble(ctx context.Context, sig signal.Detection) (SAO, error) {
 	topo, err := in.topo.Topology(ctx, sig)
 	if err != nil {
 		return SAO{}, fmt.Errorf("%w: %w", ErrTopologySource, err)

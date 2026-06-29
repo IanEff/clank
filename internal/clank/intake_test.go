@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ianeff/clank/internal/clank"
+	"github.com/ianeff/clank/internal/signal"
 )
 
 func TestIntake_AssemblesAVersionedSAO(t *testing.T) {
@@ -20,17 +21,17 @@ func TestIntake_AssemblesAVersionedSAO(t *testing.T) {
 	}
 }
 
-func sigBurnAccel() clank.SignalDetection {
-	return clank.SignalDetection{
+func sigBurnAccel() signal.Detection {
+	return signal.Detection{
 		Name:          "checkout-latency-burn-accel-001",
 		Fingerprint:   "fp-checkout-latency-001",
 		OriginService: "checkout",
 		ServiceTier:   "tier-1",
 		DetectorType:  "burn_rate_acceleration",
-		Divergence:    clank.Divergence{Metric: "latency_p99", Observed: 850, Baseline: 200, Confidence: 0.9, Trajectory: "accelerating"},
-		Impact: clank.Impact{
-			Severity:    clank.Severity{DegradationPct: 40, Trajectory: "accelerating"},
-			BlastRadius: clank.BlastRadius{AffectedPct: 60, Velocity: "fast", DownstreamConsumers: 3},
+		Divergence:    signal.Divergence{Metric: "latency_p99", Observed: 850, Baseline: 200, Confidence: 0.9, Trajectory: "accelerating"},
+		Impact: signal.Impact{
+			Severity:    signal.Severity{DegradationPct: 40, Trajectory: "accelerating"},
+			BlastRadius: signal.BlastRadius{AffectedPct: 60, Velocity: "fast", DownstreamConsumers: 3},
 		},
 		DetectedAt: time.Now(),
 	}
@@ -41,7 +42,7 @@ type fakeTopo struct {
 	err  error
 }
 
-func (f fakeTopo) Topology(_ context.Context, _ clank.SignalDetection) (clank.TopologySnapshot, error) {
+func (f fakeTopo) Topology(_ context.Context, _ signal.Detection) (clank.TopologySnapshot, error) {
 	return f.snap, f.err
 }
 
@@ -50,7 +51,7 @@ type fakeChange struct {
 	err  error
 }
 
-func (f fakeChange) Changes(_ context.Context, _ clank.SignalDetection) (clank.ChangeSnapshot, error) {
+func (f fakeChange) Changes(_ context.Context, _ signal.Detection) (clank.ChangeSnapshot, error) {
 	return f.snap, f.err
 }
 

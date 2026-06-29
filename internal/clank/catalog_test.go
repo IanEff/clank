@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ianeff/clank/internal/clank"
+	"github.com/ianeff/clank/internal/signal"
 )
 
 func TestCatalog_ReturnsOnlyAppplicableContracts(t *testing.T) {
@@ -56,7 +57,7 @@ func testContracts() []clank.ActionContract {
 func saoWithAffectedPct(p float64) clank.SAO {
 	return clank.SAO{
 		Signal: clank.SignalSnapshot{
-			BlastRadius: clank.BlastRadius{AffectedPct: p},
+			BlastRadius: signal.BlastRadius{AffectedPct: p},
 		},
 	}
 }
@@ -64,7 +65,7 @@ func saoWithAffectedPct(p float64) clank.SAO {
 func saoWithSharedPoolBottleneck() clank.SAO {
 	return clank.SAO{
 		Signal: clank.SignalSnapshot{
-			BlastRadius: clank.BlastRadius{AffectedPct: 10},
+			BlastRadius: signal.BlastRadius{AffectedPct: 10},
 		},
 		Topology: clank.TopologySnapshot{
 			Upstream: []clank.NodeState{
