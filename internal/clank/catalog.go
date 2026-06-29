@@ -23,6 +23,26 @@ func (s *StaticCatalog) Applicable(class FailureClass, tier string, sao SAO) []A
 	return applicableContracts
 }
 
+// ApplicableToTier lists the contracts the signal's tier and the SAO's
+// preconditions admit, across all failure classes — the menu the model may
+// propose from before it has committed to a FailureClass. The class filter is
+// applied afterward by the engine's enforceCatalog backstop, once the model has
+// chosen one. Without this menu in the prompt, a real model invents plausible
+// contractRefs that aren't in the catalog.
+func (s *StaticCatalog) ApplicableToTier(tier string, sao SAO) []ActionContract {
+	var out []ActionContract
+	for _, c := range s.contracts {
+		if !tierMatches(c, tier) {
+			continue
+		}
+		if !preconditionsMet(c, sao) {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
 func classMatches(c ActionContract, class FailureClass) bool {
 	for _, fc := range c.ApplicableFailureClasses {
 		if fc == class {

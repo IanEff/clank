@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ianeff/clank/internal/signal"
@@ -43,7 +44,8 @@ func (e *Engine) Propose(ctx context.Context, sig signal.Detection) (ProposalSet
 
 	set.Status = &ProposalStatus{}
 
-	msgs := []Message{{Role: "user", Content: seedPrompt(sao)}}
+	actions := e.Catalog.ApplicableToTier(sig.ServiceTier, sao)
+	msgs := []Message{{Role: "user", Content: seedPrompt(sao, actions)}}
 	var evidence []EvidenceRef
 	proposed, declined := false, false
 
@@ -156,11 +158,15 @@ func (e *Engine) Propose(ctx context.Context, sig signal.Detection) (ProposalSet
 }
 
 func (e *Engine) toolSpecs() []ToolSpec {
-	specs := make([]ToolSpec, 0, len(e.Tools))
+	specs := make([]ToolSpec, 0, len(e.Tools)+2)
 	for _, t := range e.Tools {
 		specs = append(specs, t.Spec())
 	}
-	return specs
+	// The model can only call a tool it was offered, so the two terminal control
+	// verbs must be real, offered tools — not bare switch arms. Catalogued actions
+	// are deliberately NOT offered: the model names one by ref inside propose's
+	// args, where enforceCatalog gates it.
+	return append(specs, ProposeToolSpec(), InsufficientToolSpec())
 }
 
 func (e *Engine) enforceCatalog(set ProposalSet, sao SAO) error {
@@ -176,6 +182,27 @@ func (e *Engine) enforceCatalog(set ProposalSet, sao SAO) error {
 	return nil
 }
 
-func seedPrompt(sao SAO) string {
-	return fmt.Sprintf("signal on %s (severity %.0f%%, blast %.0f%%); investigate with read-only tools, then propose.", sao.Signal.Metric, sao.Signal.Severity.DegradationPct, sao.Signal.BlastRadius.AffectedPct)
+func seedPrompt(sao SAO, actions []ActionContract) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "signal on %s (severity %.0f%%, blast %.0f%%); investigate with the read-only tools, then call propose with your hypotheses and a candidate action — or insufficient if the evidence supports no action.\n",
+		sao.Signal.Metric, sao.Signal.Severity.DegradationPct, sao.Signal.BlastRadius.AffectedPct)
+
+	if len(actions) == 0 {
+		b.WriteString("no catalogued action applies to this signal; if the evidence supports acting you must still call insufficient.")
+		return b.String()
+	}
+
+	b.WriteString("you may ONLY propose an action from this catalog — use the exact contractRef:\n")
+	for _, c := range actions {
+		classes := make([]string, len(c.ApplicableFailureClasses))
+		for i, fc := range c.ApplicableFailureClasses {
+			classes[i] = string(fc)
+		}
+		if c.Action.Description != "" {
+			fmt.Fprintf(&b, "- %s — %s (applies to: %s)\n", c.Name, c.Action.Description, strings.Join(classes, ", "))
+		} else {
+			fmt.Fprintf(&b, "- %s (applies to: %s)\n", c.Name, strings.Join(classes, ", "))
+		}
+	}
+	return b.String()
 }

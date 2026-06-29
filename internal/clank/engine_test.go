@@ -260,7 +260,7 @@ func TestPropose_AppendDigestsNotRawPayloads(t *testing.T) {
 	}
 }
 
-func TestPropose_OffersOnlyReadOnlyTools(t *testing.T) {
+func TestPropose_OffersReadOnlyToolsAndControlVerbs(t *testing.T) {
 	t.Parallel()
 	model := &fakeModel{script: []clank.Completion{{ToolCalls: []clank.ToolCall{{Name: "insufficient"}}}}}
 	e, _ := newTestEngine(model)
@@ -277,13 +277,20 @@ func TestPropose_OffersOnlyReadOnlyTools(t *testing.T) {
 		t.Fatal("model wasn't offered any tool specs")
 	}
 	offered := model.receivedTools[0]
-	for _, verb := range []string{"propose", "insufficient"} {
-		if specsContain(offered, verb) {
-			t.Errorf("control verb %q must NOT be offered as a callable tool: %v", verb, specNames(offered))
+
+	// A real model can only emit a tool call for a tool it was offered, so the
+	// read-only telemetry tools AND the two terminal control verbs must all be
+	// on the table — otherwise the loop can never terminate via propose/insufficient.
+	for _, name := range []string{"metrics", "casebase", "propose", "insufficient"} {
+		if !specsContain(offered, name) {
+			t.Errorf("expected %q to be offered to the model: %v", name, specNames(offered))
 		}
 	}
-	if !specsContain(offered, "metrics") || !specsContain(offered, "casebase") {
-		t.Errorf("read-only tools should be offered to the model: %v", specNames(offered))
+
+	// The autonomy boundary: a catalogued action is never a callable tool. The
+	// model names it by ref inside propose's args, where enforceCatalog gates it.
+	if specsContain(offered, "throttle-non-critical-paths") {
+		t.Errorf("a catalogued action must not be offered as a callable tool: %v", specNames(offered))
 	}
 }
 
