@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/ianeff/clank/internal/signal"
 )
 
 var ErrOutsideCatalog = errors.New("clank: proposed contract not in catalog")
@@ -26,7 +28,7 @@ type Engine struct {
 	Policy       GatePolicy
 }
 
-func (e *Engine) Propose(ctx context.Context, sig SignalDetection) (ProposalSet, error) {
+func (e *Engine) Propose(ctx context.Context, sig signal.Detection) (ProposalSet, error) {
 	sao, err := e.Intake.Assemble(ctx, sig)
 	if err != nil {
 		return ProposalSet{}, fmt.Errorf("intake: %w", err)

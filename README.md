@@ -82,7 +82,8 @@ on this seam holding. Three rules:
    signal trustworthiness or significance. **clank imports rattle's type; it never
    defines it.** (Declaring it as a `+kubebuilder:object` in clank's repo would silently
    move Signal-Plane ownership into Reasoning — don't. The struct is currently *reproduced
-   for reference* in `signal.go` until it graduates to a real import.)
+   for reference* in its own leaf package `internal/signal` — the compiler-enforced contract
+   seam, import-clean for rattle — until it graduates to a real import.)
 
 2. **Two confidence numbers, never one field.**
    - *Signal-strength* confidence ("is this real?") lives on
@@ -290,8 +291,13 @@ here's the trade-off." It carries the frozen `SAO` snapshot, the `FailureClass`,
 ```
 clank/
 ├── cmd/clank/main.go        # thin entry: wire deps, signal.NotifyContext, run
+├── internal/signal/
+│   └── signal.go            # the rattle⟷clank contract leaf: Detection (rattle's
+│                            # SignalDetection, reproduced as signal.Detection) +
+│                            # shared value objects (Severity, BlastRadius). clank → signal,
+│                            # never back. Where rattle slots in (import here, or graduate out
+│                            # of internal/ as its own module).
 ├── internal/clank/
-│   ├── signal.go            # SignalDetection (rattle's — reproduced for ref; graduates to an import)
 │   ├── sao.go               # SAO + sub-snapshots
 │   ├── intake.go            # ① Intake.Assemble
 │   ├── model.go             # Model, Message, Completion, ToolCall, ToolSpec (the LLM seam)
