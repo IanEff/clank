@@ -65,10 +65,6 @@ func mean(xs []float64) float64 {
 	return sum / float64(len(xs))
 }
 
-type Debouncer struct {
-	Hold time.Duration
-}
-
 type Reconciler struct {
 	SLOs     []SLO
 	Source   Source
