@@ -26,3 +26,12 @@ func stddev(xs []float64, m float64) float64 {
 	}
 	return math.Sqrt(sumSq / float64(len(xs)))
 }
+
+type Envelope interface {
+	AffectedObject() string
+	DeclaredTier() string
+	Contract() string
+	Kind() string // fingerprint prefix
+}
+
+var _ Envelope = SLO{}

@@ -41,3 +41,14 @@ func TestSignalFor_QuotesTheAccelerationInDivergence(t *testing.T) {
 			cmp.Diff(4.5, got.Divergence.Observed))
 	}
 }
+
+func TestSignalFor_StillStampsTheSameFingerprintThroughEnvelope(t *testing.T) {
+	t.Parallel()
+	var env rattle.Envelope = rattle.SLO{Object: "ceph-rgw", Tier: "tier-1", ContractRef: "ceph-rgw-availability:v1"}
+
+	got := rattle.SignalFor(env, "burn_rate_acceleration", 2.0, time.Unix(1000, 0), nil)
+
+	if got.Fingerprint != "slo_burn:ceph-rgw" {
+		t.Error("fingerprint changed shape across the Envlope refactor", cmp.Diff("slo_burn:ceph-rgw", got.Fingerprint))
+	}
+}

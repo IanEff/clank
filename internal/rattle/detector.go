@@ -19,6 +19,22 @@ type SLO struct {
 	Dependencies []Dependency
 }
 
+func (s SLO) AffectedObject() string {
+	return s.Object
+}
+
+func (s SLO) DeclaredTier() string {
+	return s.Tier
+}
+
+func (s SLO) Contract() string {
+	return s.ContractRef
+}
+
+func (s SLO) Kind() string {
+	return "slo_burn"
+}
+
 type Source interface {
 	BurnSamples(ctx context.Context, slo SLO) ([]Sample, error)
 }

@@ -18,6 +18,8 @@ type Reconciler struct {
 	BaselineSource    BaselineSource
 	Debounce          *Debouncer
 	Contract          *SignalContract
+	TopologySource    TopologySource
+	TrafficSource     TrafficSource
 	Now               func() time.Time
 }
 
@@ -64,13 +66,27 @@ func (r *Reconciler) Reconcile(ctx context.Context) ([]signal.Detection, error) 
 		if r.Debounce != nil && !r.Debounce.Allow(fingerprint(slo), now) {
 			continue // said it recently — stay quiet
 		}
-		out = append(out, SignalFor(slo, detectorType, accel, now, r.Contract))
+		d := SignalFor(slo, detectorType, accel, now, r.Contract)
+		d = EnrichSeverity(d, window)
+		if r.TopologySource != nil {
+			d = EnrichTopology(ctx, d, slo, r.TopologySource)
+		}
+		if r.TrafficSource != nil {
+			traffic, err := r.TrafficSource.TrafficSamples(ctx, slo)
+			if err != nil {
+				return nil, fmt.Errorf("traffic samples for %s: %w", slo.ID, err)
+			}
+			if len(traffic) > 0 {
+				d = EnrichTraffic(d, traffic)
+			}
+		}
+		out = append(out, d)
 	}
 	return out, nil
 }
 
-func fingerprint(slo SLO) string {
-	return "slo_burn:" + slo.Object
+func fingerprint(env Envelope) string {
+	return env.Kind() + ":" + env.AffectedObject()
 }
 
 type MultiSignalSource interface {

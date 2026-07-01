@@ -152,3 +152,32 @@ func TestReconcile_AttenuatesConfidenceInsideAnExclusionWindow(t *testing.T) {
 		t.Error("wrong attenuated confidence on the emitted Detection", diff)
 	}
 }
+
+func TestReconcile_EnrichesWhenSourcesPresentZeroValueWhenNil(t *testing.T) {
+	t.Parallel()
+	slo := rattle.SLO{ID: "x", Object: "ceph-rgw", Tier: "tier-1", Dependencies: []rattle.Dependency{{Name: "payment-gateway"}}}
+
+	withSources := newTestReconciler([]rattle.SLO{slo}, fakeSource{slo.ID: window(1, 2, 4, 8)})
+	withSources.TopologySource = fakeTopologySource{"payment-gateway": "degraded"}
+	withSources.TrafficSource = fakeTrafficSource{{AffectedPct: 0.4}}
+
+	got, _ := withSources.Reconcile(context.Background())
+	if len(got[0].Topology.Upstream) == 0 {
+		t.Error("TopologySource set but Detection.Topology.Upstream still empty — wiring didn't fire")
+	}
+	if got[0].Traffic.AffectedPct == 0 {
+		t.Error("TrafficSource set but Detection.Traffic still zero-value")
+	}
+
+	withoutSources := newTestReconciler([]rattle.SLO{slo}, fakeSource{slo.ID: window(1, 2, 4, 8)})
+	got2, _ := withoutSources.Reconcile(context.Background())
+	if got2[0].Topology.Upstream != nil {
+		t.Error("no TopologySource set — must reproduce zero-value Topology, same as pre-W8")
+	}
+}
+
+type fakeTrafficSource []rattle.TrafficSample
+
+func (f fakeTrafficSource) TrafficSamples(_ context.Context, _ rattle.SLO) ([]rattle.TrafficSample, error) {
+	return f, nil
+}

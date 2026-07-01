@@ -11,14 +11,14 @@ import (
 // re-deriving accel from the window, in a different file, with a different
 // (zero-value) Threshold than the one Reconcile actually fired on, is the bug
 // Wave 4.5 retired.
-func SignalFor(slo SLO, detectorType string, accel float64, now time.Time, contract *SignalContract) signal.Detection {
+func SignalFor(env Envelope, detectorType string, accel float64, now time.Time, contract *SignalContract) signal.Detection {
 	d := signal.Detection{
-		Name:          slo.ID + "-burn-accel",
-		Fingerprint:   fingerprint(slo),
-		OriginService: slo.Object,
-		ServiceTier:   slo.Tier,
+		Name:          env.AffectedObject() + "-burn-accel",
+		Fingerprint:   fingerprint(env),
+		OriginService: env.AffectedObject(),
+		ServiceTier:   env.DeclaredTier(),
 		DetectorType:  detectorType,
-		ContractRef:   slo.ContractRef,
+		ContractRef:   env.Contract(),
 		DetectedAt:    now,
 		Divergence: signal.Divergence{
 			Observed:   accel,
