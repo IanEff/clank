@@ -5,7 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What clank is
 
 A Go **LLM Reasoning Plane** — a *bounded reason loop* that turns one `SignalDetection`
-(a detected reliability event from the sibling project `rattle`) into a ranked,
+(a detected reliability event from `rattle`, the Signal Plane — built in this same repo as
+`internal/rattle`, see § rattle below) into a ranked,
 deduplicated, evidence-backed **`ProposalSet`**. It **assembles** a versioned snapshot
 (the SAO), then an **LLM investigates it with read-only tools**, **generates hypotheses**,
 and **proposes candidate actions with dynamic confidence** — bounded by an authored action
@@ -41,12 +42,15 @@ design rests on; see § The clank ⟷ rattle boundary below.
 Long-running service. Module `github.com/ianeff/clank`, Go 1.26. Structured `slog` logging,
 context-driven graceful shutdown.
 
-> **Repo state:** mid-rewrite, mid-reversal. `internal/clank/clank.go` is currently just a
-> package doc-comment; `clank_test.go` is a partial paste of the Wave 0 gate test and does
-> not yet compile (note: its import is the stale `github.com/ianeff/internal/clank` — the
-> real path is `github.com/ianeff/clank/internal/clank`). The authored types from the
-> deterministic detour need rebuilding around the reason loop. **The authoritative design
-> is in the vault — build from there.**
+> **Repo state (updated 2026-06-30):** clank's Phase 1 binary (W0→W7, the reason-loop
+> engine) is **DONE** — `make ci` clean end to end, `Engine.Propose` runs the full bounded
+> loop, `MarkdownSink` renders a `ProposalSet`. Build focus has moved to **rattle** (the
+> Signal Plane, `internal/rattle`) — see § rattle below for where it lives, its own wave
+> plan, and current progress. clank's Phase 2 shape (Kubernetes operator + CRDs vs. a
+> pub-sub split into separate repos) is **under active reconsideration, not finalized** —
+> see the vault's `clank-running-notes.md` `2026-06-29 § The design divergence starts here`
+> and `2026-06-30 § DRAL beat names locked` entries before building toward either. **The
+> authoritative design is in the vault — build from there.**
 
 ## How we work together (read this)
 
@@ -93,6 +97,51 @@ the repo:
 A canonical scope doc is destined for this repo at `docs/decision-engine-scope.md` (not yet
 written — Ian's to author). The vault module path is `github.com/ianeff/clank` (matches
 `go.mod`); if you spot the stale `github.com/ifurst/clank` anywhere, the real path wins.
+
+## rattle — where it lives, and current focus
+
+**rattle is being built right now, in this repo.** The locked decision (vault
+`clank-running-notes.md`, `2026-06-30 § DRAL beat names locked`, "Monorepo for now — and
+rattle goes in *here*, not its own repo") is: rattle lives at `internal/rattle` inside this
+same `clank` module, with its own `cmd/rattle/main.go` entry — **not** the standalone
+`~/projects/go/rattle` some vault docs still describe. Rationale: the beats co-evolve
+wave-by-wave and need to be presented as one system; separation of concerns is enforced at
+the **package** boundary, not the repo boundary, until the contracts stabilize. A pub-sub
+split into independent repos/binaries (rattle, clank, and the not-yet-built `hiss`
+(Govern) / `thump` (Act) / `click` (Learn) beats, over a broker — NATS JetStream is the
+leading pick) is the named **Phase-2 target**, not current work.
+
+rattle has its **own wave plan, numbered independently of clank's** (W0–W9, vs. clank's
+W0–W7) — don't conflate them when a branch or wave number comes up. Its docs live in the
+vault too, parallel to clank's, at `~/Documents/vault/Projects/rattle/` — read live, same
+discipline as clank's docs, do not mirror into the repo:
+
+- `rattle-readme.md` — anchor / one-page overview.
+- `rattle-implementation-guide.md` — the test-first build walkthrough, THE CAST, and the
+  wave-by-wave claim code (Waves 0–4b = v1, Waves 4.5–9 = v2 — the current work).
+- `rattle-running-notes.md` — investigation journal.
+- `rattle-todo.md` — the live checklist by wave.
+
+**Known stale spot:** `rattle-readme.md` and `rattle-todo.md` still describe rattle as a
+future standalone repo in places — that's flagged as a backlog item in `rattle-todo.md`
+itself, not an in-progress mistake. Trust the monorepo decision above over those passages.
+
+**Current progress (as of 2026-06-30, branch `feat/rattle-envelope`):** all three of
+rattle's pure detectors are built and wired into `Reconciler.Reconcile` as OR branches —
+burn-rate acceleration (W0), multi-signal correlation (W5), and the historical-envelope
+detector (W6: `EnvelopeDetector` + `BaselineSource`, `detectorType:
+"historical_envelope_breach"`). Next per the guide: W7 the signal contract
+(freshness/confidence-floor/attenuate-don't-suppress), W8 enrichment, W9 the `Envelope`
+interface refactor.
+
+rattle and clank couple through exactly one shared package, **`internal/signal`**
+(`Detection` + the `Severity`/`BlastRadius`/`Divergence` value objects) — `rattle/signal.go`
+already imports it directly and constructs `signal.Detection` values in `SignalFor`; this is
+exactly the monorepo case the package doc comment anticipates ("when rattle joins the
+codebase it imports this package directly"). The edge stays one-directional
+(`rattle`/`clank` → `signal`, never back). Beyond that seam, `rattle` and `clank` are two
+independent binaries in one module (`cmd/rattle`, `cmd/clank`) — no direct function calls
+between them; see § On-disk layout below.
 
 ## Architecture (the one-sentence shape)
 
@@ -288,33 +337,52 @@ conflate them.
 
 ## Trajectory
 
-Two phases. Phase 1 is the whole of the current build; phase 2 is gated on it.
+Two phases were originally scoped for clank alone. **Phase 1 is now done** (2026-06-29,
+W0→W7 green, `make ci` clean end to end) — build focus has moved to rattle (§ rattle
+above). Phase 2's shape is **under active reconsideration, not locked** — read both
+entries below before building toward either description.
 
-- **Phase 1 — the binary (now).** The test-first LLM reason loop: `Engine.Propose(ctx,
-  SignalDetection) → ProposalSet`, the pure modules + the loop green, the five
-  belief-formation defences green, the autonomy boundary enforced behaviourally, `make ci`
-  clean. Transport-agnostic library + a thin `cmd/clank` entry; the LLM behind a `Model`
-  interface, faked in tests. **This is the only thing in scope until it works.** The near-term
-  slice is the ch6/ch7 core (intake → reason loop → ground → rank → gate → emit); the ch8
-  surface (gate-vs-shaper shaper, CRS, registries, delivery validation) is **named but not
-  built**.
-- **Phase 2 — the operator (after the binary works).** Wrap the working engine as a Kubernetes
-  operator (controller-runtime / kubebuilder): a reconciler watches `SignalDetection` CRs (off
-  rattle) and *dispatches* a reason run, tracking a status phase; the resulting `ProposalSet`
-  surfaces as a CR / status / event. **The contracts ARE the CRDs:** the boundary objects
-  (`SignalDetection` in — rattle's; `ProposalSet` out — clank's; plus the authored
-  `ActionContract` / `GatePolicy`) graduate to `api/v1alpha1`, while the engine internals (`SAO`,
-  `Candidate`, `CausalScore`, the conversation `Store`/`Turn`) stay in memory — etcd is not a
-  scratchpad; only the terminal `ProposalSet` lands on the CR. The plane boundary becomes
-  RBAC-enforced.
+- **Phase 1 — the binary (done, 2026-06-29).** The test-first LLM reason loop:
+  `Engine.Propose(ctx, SignalDetection) → ProposalSet`, the pure modules + the loop green,
+  the five belief-formation defences green, the autonomy boundary enforced behaviourally.
+  Transport-agnostic library + a thin `cmd/clank` entry; the LLM behind a `Model` interface,
+  faked in tests. The ch6/ch7 core (intake → reason loop → ground → rank → gate → emit) is
+  built; the ch8 surface (gate-vs-shaper shaper, CRS, registries, delivery validation) is
+  still **named but not built**.
+- **Phase 2 — two competing descriptions, neither finalized.** The original plan below
+  ("the operator") is what `clank-architecture.md` still describes as of writing; a newer,
+  broader vision (vault `clank-running-notes.md`, `2026-06-30 § DRAL beat names locked`)
+  **supersedes its project-layout/import-coupling assumptions** but hasn't been reconciled
+  back into the architecture doc yet. Don't treat either as settled — check
+  `clank-running-notes.md`'s `2026-06-29 § The design divergence starts here` and
+  `2026-06-30` entries for the live state before committing code to either shape:
+  - *The original operator plan:* wrap the engine as a Kubernetes operator
+    (controller-runtime / kubebuilder): a reconciler watches `SignalDetection` CRs (off
+    rattle) and *dispatches* a reason run, tracking a status phase; the resulting
+    `ProposalSet` surfaces as a CR / status / event. **The contracts ARE the CRDs:** the
+    boundary objects graduate to `api/v1alpha1`, engine internals stay in memory, only the
+    terminal `ProposalSet` lands on the CR. Ian's 2026-06-29 call: CRDs/etcd are "no longer
+    a given" — this plan is now in doubt, not confirmed dead.
+  - *The newer DRAL vision:* five named beats — rattle (Detect), clank (Reason), `hiss`
+    (Govern), `thump` (Act), `click` (Learn) — built as one monorepo **for now**
+    (`internal/rattle`, `internal/clank`, …), graduating to independent repos/binaries
+    decoupled by a pub-sub broker (NATS JetStream is the leading pick) once the seam
+    contracts (`signal.Detection`, `ProposalSet`, and the not-yet-built `Decision`/
+    `Outcome`/`Lesson`) stabilize. No CRDs or etcd in this version.
 
-**Phase 2 does not change phase 1.** The operator is a **delivery/trigger surface** — a new
-*caller* of `Engine.Propose` plus a CR-applying `ProposalSink`. The one care: the reason loop
-is **not** a reconcile (it's a long-running, externally-side-effecting LLM conversation), so
-the reconcile *dispatches* it rather than running it inline. The pipeline modules and their
-tests are untouched. Do not pre-build operator scaffolding while phase 1 is unfinished.
+**Either way, phase 2 does not change phase 1's pipeline.** Whatever the delivery/trigger
+surface ends up being, it's a new *caller* of `Engine.Propose`, not a rewrite of the reason
+loop, the pure modules, or their tests. Do not pre-build operator or pub-sub scaffolding —
+that direction isn't picked yet.
 
 ## Working with the tests (a spine, not a cage)
+
+clank's own Waves W0→W7 below are **complete** (kept here as the record of how the build
+happened and the spirit to bring to whatever's next — new clank work extends this pipeline
+rather than restarting it). rattle is mid-build on its own, separately-numbered spine
+(W0–W9) — see § rattle above and `rattle-implementation-guide.md` for its wave list; the
+conventions in this section (test-first where it's fun, fakes over mocks, falsifiable test
+names) apply equally there.
 
 The implementation guide lays out a test list (Waves W0→W7) written red→green, and it's a good
 map of what to build and in what order. The pure modules are a gift to TDD — table tests, no
@@ -348,22 +416,27 @@ conventions keep them sharp:
 
 ## On-disk layout (one file per seam)
 
-Phase 1 is **the `internal/clank` package, one file per seam** — the file boundaries already
+clank is **the `internal/clank` package, one file per seam** — the file boundaries already
 express the module table, while keeping the test-first flow simple (tests in external
 `clank_test`, one vocabulary). The one carve-out is the **rattle⟷clank contract surface**,
 which lives in its own leaf package `internal/signal` (`signal.go`: `Detection` — rattle's
-`SignalDetection`, reproduced locally as `signal.Detection` until it graduates to an import —
-plus the shared `Severity`/`BlastRadius` value objects that ride the boundary). The edge is one-directional
-(`clank → signal`, never back), so the seam is compiler-enforced and import-clean for when
-rattle joins. The `internal/clank` files: `sao.go`, `intake.go`, `model.go` (`Model`,
+`SignalDetection`, reproduced locally as `signal.Detection` — plus the shared
+`Severity`/`BlastRadius` value objects that ride the boundary). The edge is one-directional
+(`clank`/`rattle` → `signal`, never back), so the seam is compiler-enforced. rattle has
+already joined (`internal/rattle`, its own file-per-detector layout — `detector.go`,
+`debounce.go`, `reconcile.go`, `correlation.go`, `envelope.go`, `source.go`, `signal.go`;
+see § rattle above) and imports `internal/signal` directly — no reshuffle needed, exactly
+the monorepo path the package doc comment anticipated. The `internal/clank` files:
+`sao.go`, `intake.go`, `model.go` (`Model`,
 `Message`, `Completion`, `ToolCall`, `ToolSpec` — the LLM seam), `tools.go` (`Tool` +
 read-only telemetry / case-base retrieval), `engine.go` (`Engine.Propose` — the bounded reason
 loop, tool dispatch, set formation), `store.go` (`Store` + `Turn` + in-memory impl),
 `catalog.go`, `causal.go`, `rank.go`, `gate.go`, `proposal.go` (`ProposalSet` +
 `ProposalStatus`, outcome enum incl. `partial_non_converging`), `policy.go`, `sink.go`,
 `ledger.go` (`ProposalLog`). Plus `cmd/clank/main.go` (thin entry: wire deps,
-`signal.NotifyContext`, run). Note there is **no** `classify.go` or `instantiate.go` — those
-were the deterministic detour; classification is now the model's output. Sub-package splits for
+`signal.NotifyContext`, run) and `cmd/rattle/main.go` (rattle's own thin entry). Note there
+is **no** `classify.go` or `instantiate.go` in `internal/clank` — those were the
+deterministic detour; classification is now the model's output. Sub-package splits for
 compile-time boundary enforcement are a Phase-1.5 graduation — deferred so they don't slow the
 red→green build.
 
