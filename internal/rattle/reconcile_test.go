@@ -115,3 +115,40 @@ type fakeBaselineSource map[string][]rattle.Sample
 func (f fakeBaselineSource) BaselineSamples(_ context.Context, slo rattle.SLO) ([]rattle.Sample, error) {
 	return f[slo.ID], nil
 }
+
+func TestReconcile_SkipsAStaleWindowWhenContractSet(t *testing.T) {
+	t.Parallel()
+	slo := rattle.SLO{ID: "ceph-rgw-availability", Object: "ceph-rgw", Tier: "tier-1"}
+	r := newTestReconciler([]rattle.SLO{slo}, fakeSource{slo.ID: window(1, 2, 4, 8)}) // would fire
+	r.Contract = &rattle.SignalContract{FreshnessBound: time.Minute}                  // frozen clock is far newer than this
+
+	got, err := r.Reconcile(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Error("a stale window under contract must not fire, even though the detector would have", cmp.Diff(0, len(got)))
+	}
+}
+
+func TestReconcile_AttenuatesConfidenceInsideAnExclusionWindow(t *testing.T) {
+	t.Parallel()
+	slo := rattle.SLO{ID: "ceph-rgw-availability", Object: "ceph-rgw", Tier: "tier-1"}
+	r := newTestReconciler([]rattle.SLO{slo}, fakeSource{slo.ID: window(1, 2, 4, 8)})
+	r.Contract = &rattle.SignalContract{
+		FreshnessBound:   time.Hour,
+		ConfidenceFloor:  0.1,
+		ExclusionWindows: []rattle.ExclusionWindow{{Start: time.Unix(0, 0), End: time.Unix(2000, 0)}},
+	}
+
+	got, err := r.Reconcile(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatal("expected the detector to still fire, just at lowered confidence")
+	}
+	if diff := cmp.Diff(0.5, got[0].Divergence.Confidence); diff != "" {
+		t.Error("wrong attenuated confidence on the emitted Detection", diff)
+	}
+}

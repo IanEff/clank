@@ -17,6 +17,7 @@ type Reconciler struct {
 	Envelope          *EnvelopeDetector
 	BaselineSource    BaselineSource
 	Debounce          *Debouncer
+	Contract          *SignalContract
 	Now               func() time.Time
 }
 
@@ -30,6 +31,10 @@ func (r *Reconciler) Reconcile(ctx context.Context) ([]signal.Detection, error) 
 		window, err := r.Source.BurnSamples(ctx, slo)
 		if err != nil {
 			return nil, fmt.Errorf("burn samples for %s: %w", slo.ID, err)
+		}
+		now := clock()
+		if r.Contract != nil && !r.Contract.Fresh(window, now) {
+			continue
 		}
 		fired, accel := r.Detector.Detect(window)
 		detectorType := "burn_rate_acceleration"
@@ -56,11 +61,10 @@ func (r *Reconciler) Reconcile(ctx context.Context) ([]signal.Detection, error) 
 		if !fired {
 			continue
 		}
-		now := clock()
 		if r.Debounce != nil && !r.Debounce.Allow(fingerprint(slo), now) {
 			continue // said it recently — stay quiet
 		}
-		out = append(out, SignalFor(slo, detectorType, accel, now))
+		out = append(out, SignalFor(slo, detectorType, accel, now, r.Contract))
 	}
 	return out, nil
 }
